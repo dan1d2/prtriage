@@ -1,121 +1,170 @@
-# PR Triage Bot
+# 🤖 PR Triage Bot
 
-> Never miss the next PR to review. Keep your engineering team flowing.
+A GitHub + Slack bot that helps engineering teams always have the next correct PR to review and prevents PRs from dying silently.
 
-## 🎯 What is PR Triage Bot?
+## 🚀 Quick Deploy
 
-PR Triage Bot helps engineering teams always have the next correct PR to review and prevents PRs from dying silently.
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fdan1d2%2Fprtriage&env=GITHUB_APP_ID,GITHUB_APP_PRIVATE_KEY,GITHUB_APP_WEBHOOK_SECRET,GITHUB_APP_CLIENT_ID,GITHUB_APP_CLIENT_SECRET,SLACK_BOT_TOKEN,SLACK_SIGNING_SECRET,SLACK_APP_TOKEN&envDescription=Required%20for%20GitHub%20and%20Slack%20integration&envLink=https%3A%2F%2Fgithub.com%2Fdan1d2%2Fprtriage%2Fblob%2Fmain%2F.env.example&project-name=prtriage&repository-name=prtriage)
 
-### Key Features
-- **Smart Prioritization**: Automatically identifies which PRs are ready for review
-- **Slack Integration**: `/prs`, `/prs mine`, `/prs take` commands
-- **GitHub Integration**: Real-time webhook processing
+## ✨ Features
+
+### 📊 PR State Management
+- **READY**: PR is ready for review
+- **WAITING_ON_REVIEWERS**: Needs reviewer attention
+- **WAITING_ON_AUTHOR**: Author needs to address feedback
+- **BLOCKED**: Blocked by checks or dependencies
+- **DONE**: Merged or closed
+
+### 🎯 Smart Prioritization
+- **Scoring Algorithm**: Size (40%), Age (25%), Activity (20%), Dependencies (15%)
+- **Automatic State Detection**: Based on GitHub events
 - **Anti-Spam**: SHA-based deduplication, 5-minute cooldown
-- **"Take" Functionality**: One-click to add yourself as reviewer
+
+### 💬 Slack Integration
+- **/prs**: List PRs ready for review
+- **/prs_mine**: List your PRs
+- **/prs_take**: Take a PR for review
+- **/prs_snooze**: Snooze notifications
+- **/prs_config**: Admin configuration
+- **/prs_link**: Link Slack ↔ GitHub accounts
+
+### 🔧 GitHub Integration
+- **Webhook Processing**: Real-time PR updates
+- **"Take" Functionality**: Adds user as reviewer
+- **Branch Protection**: Supports 2 approvals + 4 checks
+- **Event Handling**: PR, review, check suite, comments
 
 ## 🏗️ Architecture
 
 ```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GitHub Webhooks │──▶│   State Machine  │──▶│   Slack Notify   │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-         │                        │                        │
-         ▼                        ▼                        ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   GitHub API     │    │   PostgreSQL     │    │   Slack Bolt     │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   GitHub    │◄──►│  PR Triage  │◄──►│    Slack    │
+│    App      │    │     Bot     │    │     App     │
+└─────────────┘    └─────────────┘    └─────────────┘
+                           │
+                    ┌─────────────┐
+                    │ PostgreSQL  │
+                    │   + Redis   │
+                    └─────────────┘
 ```
 
-### Tech Stack
-- **Backend**: Node.js 18+, TypeScript 5.3+
-- **GitHub**: Probot + Octokit
-- **Slack**: Slack Bolt
-- **Database**: PostgreSQL + Redis (cache)
-- **Container**: Docker
+## 🛠️ Tech Stack
 
-## 📋 PR States
+- **Runtime**: Node.js + TypeScript
+- **Framework**: Express.js
+- **GitHub**: GitHub App + Webhooks
+- **Slack**: Bolt.js + Socket Mode
+- **Database**: PostgreSQL + Redis
+- **Deployment**: Vercel
+- **Monitoring**: Winston logging + Health checks
 
-| State | Description | Notification |
-|-------|-------------|--------------|
-| **READY** | All checks pass, needs reviewers | Channel notification |
-| **WAITING_ON_REVIEWERS** | Reviews requested, waiting | Digest only |
-| **WAITING_ON_AUTHOR** | Changes requested or comments after last push | DM after 48h |
-| **BLOCKED** | Failed checks or conflicts | Digest only |
-| **DONE** | Merged or closed | None |
+## 📦 Installation
 
-## 🚀 Quick Start
+### Prerequisites
+- Node.js 18+
+- PostgreSQL (or Supabase/Neon)
+- Redis (or Upstash)
+- GitHub Account
+- Slack Workspace
 
-### 1. Clone & Setup
+### Local Development
+
 ```bash
+# Clone repository
 git clone https://github.com/dan1d2/prtriage.git
 cd prtriage
+
+# Install dependencies
 npm install
-```
 
-### 2. Environment Configuration
-```bash
+# Copy environment variables
 cp .env.example .env
-# Edit .env with your tokens
-```
 
-### 3. Database Setup
-```bash
-npm run db:migrate
-```
+# Edit .env with your credentials
+# GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY, etc.
 
-### 4. Run Development
-```bash
+# Start development server
 npm run dev
 ```
+
+### Production Deployment
+
+See [DEPLOY.md](DEPLOY.md) for detailed Vercel deployment instructions.
 
 ## 🔧 Configuration
 
 ### GitHub App Setup
-1. Create GitHub App with these permissions:
-   - Pull requests: Read & Write
-   - Checks: Read
-   - Metadata: Read
-   - Issues: Read
-   - Contents: Read
-
-2. Webhook events:
-   - `pull_request`
-   - `pull_request_review`
-   - `check_suite`
-   - `check_run`
-   - `issue_comment`
+1. Create GitHub App at https://github.com/settings/apps
+2. Configure permissions and webhooks
+3. Get: App ID, Private Key, Client ID/Secret, Webhook Secret
 
 ### Slack App Setup
-1. Create Slack App with these scopes:
-   - `chat:write`
-   - `commands`
-   - `users:read`
-   - `conversations:read`
-   - `im:write`
+1. Create Slack App at https://api.slack.com/apps
+2. Configure scopes and slash commands
+3. Get: Bot Token, Signing Secret, App Token
 
-2. Slash commands:
-   - `/prs` - List PRs by priority
-   - `/prs mine` - List your PRs
-   - `/prs take` - Take a PR for review
-   - `/prs snooze` - Snooze notifications
-   - `/prs config` - Admin settings
-   - `/prs link` - Link Slack ↔ GitHub
+### Environment Variables
+See [.env.example](.env.example) for all required variables.
 
-## 📊 Scoring Algorithm
+## 📚 Usage
 
-PRs are scored for prioritization:
-- **Size (40%)**: Smaller PRs get higher priority
-- **Age (25%)**: Older PRs get higher priority
-- **Activity (20%)**: Recent activity increases priority
-- **Dependencies (15%)**: Blocking other work increases priority
+### Slack Commands
 
-## 🛡️ Branch Protection Integration
+```bash
+# List PRs ready for review
+/prs
 
-Respects repository branch protection rules:
-- Required checks (typically 4)
-- Required approving reviews (typically 2)
-- CODEOWNERS file (if enabled)
-- Dismiss stale reviews setting
+# List your PRs
+/prs_mine
+
+# Take a PR for review
+/prs_take owner/repo#123
+
+# Snooze notifications
+/prs_snooze 4h "Focusing on deep work"
+
+# Link Slack ↔ GitHub
+/prs_link your-github-username
+
+# Admin configuration
+/prs_config
+```
+
+### GitHub Integration
+- The bot automatically monitors PRs in configured repositories
+- Updates PR state based on events
+- Sends notifications to Slack when PRs need attention
+
+## 🧪 Testing
+
+```bash
+# Run tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Lint code
+npm run lint
+
+# Format code
+npm run format
+```
+
+## 📊 Database Schema
+
+See [src/db/connection.ts](src/db/connection.ts) for complete schema including:
+- `pr_snapshots`: PR state history
+- `slack_users`: Slack ↔ GitHub mapping
+- `notifications`: Sent notifications
+- `snoozes`: User notification snoozes
+- `digests`: Daily digest records
+
+## 🔍 Monitoring
+
+- **Health Check**: `GET /health`
+- **Logs**: Structured JSON logging with Winston
+- **Metrics**: Request timing, error rates, queue sizes
 
 ## 🤝 Contributing
 
@@ -123,7 +172,7 @@ Respects repository branch protection rules:
 2. Create a feature branch
 3. Make your changes
 4. Add tests
-5. Submit a PR
+5. Submit a pull request
 
 ## 📄 License
 
@@ -131,13 +180,12 @@ MIT
 
 ## 🙏 Acknowledgments
 
-Built with ❤️ using:
-- [Probot](https://probot.github.io/) - GitHub App framework
-- [Slack Bolt](https://slack.dev/bolt-js/) - Slack App framework
-- [PostgreSQL](https://www.postgresql.org/) - Database
-- [Redis](https://redis.io/) - Cache
+- Built with [OpenClaw](https://openclaw.ai)
+- Inspired by engineering teams tired of PRs dying silently
+- Thanks to all contributors and testers
 
----
+## 📞 Support
 
-**Maintained by**: [dan1d2](https://github.com/dan1d2)
-**Project Status**: MVP Development
+- **Issues**: https://github.com/dan1d2/prtriage/issues
+- **Documentation**: [DEPLOY.md](DEPLOY.md)
+- **Quick Start**: Use the Vercel deploy button above!

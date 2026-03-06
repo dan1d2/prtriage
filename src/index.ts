@@ -1,78 +1,87 @@
-import 'dotenv/config';
 import express from 'express';
 import { createLogger } from './utils/logger';
-import { initDatabase } from './db/connection';
-import { initGitHub } from './github/webhook';
+import { healthRouter } from './utils/health';
+import { webhookRouter } from './github/webhook';
 import { initSlack } from './slack/app';
-import { healthCheck } from './utils/health';
 
+const logger = createLogger('server');
 const app = express();
-const logger = createLogger('main');
 const PORT = process.env.PORT || 3000;
 
-async function main() {
-  logger.info('Starting PR Triage Bot...');
+// Middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-  // Initialize database
+// Routes
+app.use('/health', healthRouter);
+app.use('/github/webhook', webhookRouter);
+
+// Root route for verification
+app.get('/', (req, res) => {
+  res.json({
+    name: 'PR Triage Bot',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/health',
+      githubWebhook: '/github/webhook',
+      slackEvents: '/slack/events'
+    },
+    documentation: 'https://github.com/dan1d2/prtriage'
+  });
+});
+
+// Slack events endpoint
+app.post('/slack/events', async (req, res) => {
   try {
-    await initDatabase();
-    logger.info('Database initialized successfully');
+    // For now, just acknowledge the request
+    // Slack Bolt will handle this when initialized
+    if (req.body.type === 'url_verification') {
+      res.json({ challenge: req.body.challenge });
+      return;
+    }
+    
+    res.status(200).send();
   } catch (error) {
-    logger.error('Failed to initialize database', { error });
+    logger.error('Error handling Slack events', { error });
+    res.status(500).send();
+  }
+});
+
+// Start server
+async function startServer() {
+  try {
+    // Initialize Slack app if tokens are configured
+    if (process.env.SLACK_BOT_TOKEN && process.env.SLACK_SIGNING_SECRET) {
+      const slackApp = await initSlack();
+      await slackApp.start();
+      logger.info('Slack app started');
+    } else {
+      logger.warn('Slack tokens not configured, Slack app will not start');
+    }
+
+    app.listen(PORT, () => {
+      logger.info(`Server running on port ${PORT}`);
+      logger.info(`Health check: http://localhost:${PORT}/health`);
+      logger.info(`GitHub webhook: http://localhost:${PORT}/github/webhook`);
+      logger.info(`Slack events: http://localhost:${PORT}/slack/events`);
+    });
+  } catch (error) {
+    logger.error('Failed to start server', { error });
     process.exit(1);
   }
-
-  // Middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-
-  // Health check endpoint
-  app.get('/health', healthCheck);
-
-  // Initialize GitHub webhook handler
-  const githubRouter = await initGitHub();
-  app.use('/github', githubRouter);
-
-  // Initialize Slack app
-  const slackApp = await initSlack();
-  
-  // Start Slack app (it starts its own server)
-  await slackApp.start(Number(PORT) + 1);
-  logger.info(`Slack app started on port ${Number(PORT) + 1}`);
-
-  // Start main server
-  app.listen(PORT, () => {
-    logger.info(`PR Triage Bot listening on port ${PORT}`);
-    logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
-    logger.info('Ready to process PRs! 🚀');
-  });
-
-  // Graceful shutdown
-  process.on('SIGTERM', async () => {
-    logger.info('SIGTERM received, shutting down gracefully...');
-    await slackApp.stop();
-    process.exit(0);
-  });
-
-  process.on('SIGINT', async () => {
-    logger.info('SIGINT received, shutting down gracefully...');
-    await slackApp.stop();
-    process.exit(0);
-  });
 }
 
-// Error handling for uncaught exceptions
-process.on('uncaughtException', (error) => {
-  logger.error('Uncaught exception', { error });
-  process.exit(1);
+// Handle graceful shutdown
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  process.exit(0);
 });
 
-process.on('unhandledRejection', (reason, promise) => {
-  logger.error('Unhandled rejection', { reason, promise });
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  process.exit(0);
 });
 
-// Start the application
-main().catch((error) => {
-  logger.error('Failed to start application', { error });
-  process.exit(1);
-});
+// Start the server
+startServer();
