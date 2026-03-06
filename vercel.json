@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/github/webhook",
+      "dest": "/dist/index.js",
+      "methods": ["POST"]
+    },
+    {
+      "src": "/slack/events",
+      "dest": "/dist/index.js",
+      "methods": ["POST"]
+    },
+    {
+      "src": "/health",
+      "dest": "/dist/index.js",
+      "methods": ["GET"]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/dist/index.js"
+    }
+  ],
+  "env": {
+    "NODE_ENV": "production"
+  }
+}
